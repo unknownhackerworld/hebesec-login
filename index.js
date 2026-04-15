@@ -33,7 +33,7 @@ const initDB = async () => {
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
-            email VARCHAR(150) UNIQUE NOT NULL,
+            username VARCHAR(150) UNIQUE NOT NULL,
             password TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -75,54 +75,15 @@ app.get(`${BASE_URL}/health`, (req, res) => {
 });
 
 
-// hide this, dont reveal in public. READ MORE ABOUT IT IN https://cyberthulir.maattraan.xyz/learn#web
-// Register
-app.post(`${BASE_URL}/register`, async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "All fields required" });
-    }
-
-    const userExists = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email]
-    );
-
-    if (userExists.rows.length > 0) {
-      return res.status(409).json({ message: "User already exists" });
-    }
-
-    const hashedPassword = await bcrypt.hash(
-      password,
-      parseInt(process.env.BCRYPT_SALT_ROUNDS)
-    );
-
-    const newUser = await pool.query(
-      "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, email",
-      [name, email, hashedPassword]
-    );
-
-    res.status(201).json({
-      message: "User registered successfully",
-      user: newUser.rows[0],
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
 
 // Login
 app.post(`${BASE_URL}/login`, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
     const result = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email]
+      "SELECT * FROM users WHERE username = $1",
+      [username]
     );
 
     const user = result.rows[0];
@@ -137,7 +98,7 @@ app.post(`${BASE_URL}/login`, async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, username: user.username },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
@@ -152,11 +113,51 @@ app.post(`${BASE_URL}/login`, async (req, res) => {
   }
 });
 
+// hide this, dont reveal in public. READ MORE ABOUT IT IN https://cyberthulir.maattraan.xyz/learn#web
+// Register
+app.post(`${BASE_URL}/register`, async (req, res) => {
+  try {
+    const { username, password,name } = req.body;
+
+    if (!name || !username || !password) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
+    const userExists = await pool.query(
+      "SELECT * FROM users WHERE username = $1",
+      [username]
+    );
+
+    if (userExists.rows.length > 0) {
+      return res.status(409).json({ message: "User already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(
+      password,
+      parseInt(process.env.BCRYPT_SALT_ROUNDS)
+    );
+
+    const newUser = await pool.query(
+      "INSERT INTO users (name, username, password) VALUES ($1, $2, $3) RETURNING id, username",
+      [name, username, hashedPassword]
+    );
+
+    res.status(201).json({
+      message: "User registered successfully",
+      user: newUser.rows[0],
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Profile (Protected)
 app.get(`${BASE_URL}/profile`, authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, created_at FROM users WHERE id = $1",
+      "SELECT id, name, username, created_at FROM users WHERE id = $1",
       [req.user.id]
     );
 
