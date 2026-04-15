@@ -75,6 +75,46 @@ app.get(`${BASE_URL}/health`, (req, res) => {
 });
 
 
+// hide this, dont reveal in public. READ MORE ABOUT IT IN https://cyberthulir.maattraan.xyz/learn#web
+// Register
+app.post(`${BASE_URL}/register`, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
+    const userExists = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (userExists.rows.length > 0) {
+      return res.status(409).json({ message: "User already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(
+      password,
+      parseInt(process.env.BCRYPT_SALT_ROUNDS)
+    );
+
+    const newUser = await pool.query(
+      "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, email",
+      [name, email, hashedPassword]
+    );
+
+    res.status(201).json({
+      message: "User registered successfully",
+      user: newUser.rows[0],
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Login
 app.post(`${BASE_URL}/login`, async (req, res) => {
   try {
